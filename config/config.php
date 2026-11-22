@@ -1,18 +1,23 @@
-<?php
-// Detect local environment (XAMPP localhost) vs production
-$isLocal = in_array($_SERVER['SERVER_NAME'] ?? 'localhost', ['localhost', '127.0.0.1', '::1'])
-    || (php_sapi_name() === 'cli' && empty(getenv('DB_HOST')));
 
-if ($isLocal && empty(getenv('DB_HOST'))) {
+<?php
+// Detect local XAMPP environment
+$isLocal = in_array(
+    $_SERVER['SERVER_NAME'] ?? 'localhost',
+    ['localhost', '127.0.0.1', '::1']
+);
+
+if ($isLocal) {
     define('DB_HOST', 'localhost');
+    define('DB_PORT', '3306');
     define('DB_NAME', 'netusage_hub');
     define('DB_USER', 'root');
     define('DB_PASS', '');
 } else {
-    define('DB_HOST', getenv('DB_HOST') ?: 'sql313.infinityfree.com');
-    define('DB_NAME', getenv('DB_NAME') ?: 'if0_43395558_netusage');
-    define('DB_USER', getenv('DB_USER') ?: 'if0_43395558');
-    define('DB_PASS', getenv('DB_PASS') ?: 'IGATHufN3ISWG');
+    define('DB_HOST', getenv('DB_HOST') ?: '');
+    define('DB_PORT', getenv('DB_PORT') ?: '3306');
+    define('DB_NAME', getenv('DB_NAME') ?: '');
+    define('DB_USER', getenv('DB_USER') ?: '');
+    define('DB_PASS', getenv('DB_PASS') ?: '');
 }
 
 define('APP_NAME', 'NetUsage Hub');
@@ -25,14 +30,28 @@ if (session_status() === PHP_SESSION_NONE) {
 
 function db(): PDO {
     static $pdo = null;
+
     if ($pdo === null) {
+        if (!DB_HOST || !DB_NAME || !DB_USER) {
+            throw new RuntimeException(
+                'Database environment variables are missing.'
+            );
+        }
+
         $pdo = new PDO(
-            'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
+            'mysql:host=' . DB_HOST .
+            ';port=' . DB_PORT .
+            ';dbname=' . DB_NAME .
+            ';charset=utf8mb4',
             DB_USER,
             DB_PASS,
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+            [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+            ]
         );
     }
+
     return $pdo;
 }
 
@@ -46,7 +65,10 @@ function redirect(string $path): never {
 }
 
 function csrf_token(): string {
-    if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    if (empty($_SESSION['csrf'])) {
+        $_SESSION['csrf'] = bin2hex(random_bytes(32));
+    }
+
     return $_SESSION['csrf'];
 }
 
@@ -56,3 +78,4 @@ function verify_csrf(): void {
         exit('Invalid request token. Please go back and try again.');
     }
 }
+
